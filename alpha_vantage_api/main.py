@@ -1,5 +1,5 @@
 from configparser import ConfigParser
-from alpha_vantage_api.crawler import Crawler
+from crawler import Crawler
 import logging
 import time
 import psycopg2
@@ -7,7 +7,7 @@ import psycopg2
 
 def main():
     config = ConfigParser()
-    config.read("..\\default.cfg")
+    config.read("../default.cfg")
     db_host = config["database"]["host"]
     db_name = config["database"]["db_name"]
     db_user = config["database"]["user"]

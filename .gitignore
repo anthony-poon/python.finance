@@ -1,7 +1,5 @@
 default.cfg
 **/*.png
 **/*.log
-**/log
-.*
-!.gitignore
+.idea
 _*
