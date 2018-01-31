@@ -1,0 +1,7 @@
+default.cfg
+**/*.png
+**/*.log
+**/log
+.*
+!.gitignore
+_*
