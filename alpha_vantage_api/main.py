@@ -3,9 +3,12 @@ from crawler import Crawler
 import logging
 import time
 import psycopg2
+import os
+import sys
 
 
 def main():
+    os.chdir(os.path.dirname(sys.argv[0]))
     config = ConfigParser()
     config.read("../default.cfg")
     db_host = config["database"]["host"]
