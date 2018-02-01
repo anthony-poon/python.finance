@@ -43,9 +43,8 @@ class Crawler():
 
     def set_logging_path(self, path):
         if os.path.isdir(path):
-            sub_folder = pendulum.now().to_date_string()
-            os.makedirs(path + "/" + sub_folder, exist_ok=True)
-            path = path + "/" + sub_folder + "/" + self._symbol.replace(".", "_") + ".log"
+            os.makedirs(path, exist_ok=True)
+            path = path + "/" + self._symbol.replace(".", "_") + ".log"
         self._log_path = path
         return self
 
