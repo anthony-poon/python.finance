@@ -24,7 +24,7 @@ def main():
             time.sleep(1)
             crawler = Crawler(api_key, symbol, db_host, db_name, db_user, db_password)
             crawler.set_full_mode()
-            crawler.add_logging_path("../var/log/av_crawler")
+            crawler.set_logging_path("../var/log/av_crawler")
             result, row_count = crawler.run()
             if result:
                 print("{0} row(s) updated for {1}".format(row_count, symbol))

@@ -14,13 +14,13 @@ class Crawler():
         self._db_host = db_host
         self._db_user = db_user
         self._symbol = symbol
-        self._logger = logging.getLogger(__name__ + "_" + symbol)
-        self._logger.setLevel(logging.WARNING)
+        self._logger_level = logging.WARNING
         self._api_key = api_key
         self._mode = "compact"
         self._url = "https://www.alphavantage.co/query?function={0}&symbol={1}&outputsize={2}&datatype={3}&apikey={4}"
         self._max_retry_count = 5
         self._retry_sleep = 5
+        self._log_path = None
 
     def set_compact_mode(self):
         self._mode = "compact"
@@ -38,16 +38,15 @@ class Crawler():
             logging.CRITICAL
         }:
             raise ValueError("Please provide a valid logging level")
-        self._logger.setLevel(level)
+        self._logger_level = level
         return self
 
-    def add_logging_path(self, path):
+    def set_logging_path(self, path):
         if os.path.isdir(path):
-            path = path + "/" + self._symbol.replace(".", "_") + ".log"
-        handler = logging.FileHandler(path)
-        formatter = logging.Formatter("[%(asctime)s] [%(name)s] [%(levelname)s] - %(message)s ")
-        handler.setFormatter(formatter)
-        self._logger.addHandler(handler)
+            sub_folder = pendulum.now().to_date_string()
+            os.makedirs(path + "/" + sub_folder, exist_ok=True)
+            path = path + "/" + sub_folder + "/" + self._symbol.replace(".", "_") + ".log"
+        self._log_path = path
         return self
 
     def _get_daily_adjusted(self):
@@ -110,47 +109,67 @@ class Crawler():
                     row_count = 0
                     for row in data_arr:
                         # check for 0 value
+                        valid_entry = True
                         for data_field in [
                             "open_price", "high_price", "low_price", "close_price", "adj_close_price"
                         ]:
-                            if float(row[data_field]) < 0.0001:
-                                self._logger.info("Invalid value for {0}. {1}".format(data_field, json.dumps(row)))
-                        row["stock_uid"] = result[0]
-                        cursor.execute("""
-                            INSERT INTO public.daily_adj_price (
-                                entry_date, 
-                                open_price, 
-                                close_price, 
-                                high_price, 
-                                low_price, 
-                                adj_close_price, 
-                                volume, 
-                                dividend, 
-                                split_coefficient,
-                                stock_uid) 
-                            VALUES (
-                                %(entry_date)s, 
-                                %(open_price)s, 
-                                %(close_price)s, 
-                                %(high_price)s, 
-                                %(low_price)s, 
-                                %(adj_close_price)s, 
-                                %(volume)s, 
-                                %(dividend)s, 
-                                %(split_coefficient)s,
-                                %(stock_uid)s)
-                            ON CONFLICT DO NOTHING;
-                        """, row)
-                        conn.commit()
-                        row_count += cursor.rowcount
+                            if valid_entry and float(row[data_field]) < 0.0001:
+                                valid_entry = False
+                        if valid_entry:
+                            row["stock_uid"] = result[0]
+                            cursor.execute("""
+                                INSERT INTO public.daily_adj_price (
+                                    entry_date, 
+                                    open_price, 
+                                    close_price, 
+                                    high_price, 
+                                    low_price, 
+                                    adj_close_price, 
+                                    volume, 
+                                    dividend, 
+                                    split_coefficient,
+                                    stock_uid) 
+                                VALUES (
+                                    %(entry_date)s, 
+                                    %(open_price)s, 
+                                    %(close_price)s, 
+                                    %(high_price)s, 
+                                    %(low_price)s, 
+                                    %(adj_close_price)s, 
+                                    %(volume)s, 
+                                    %(dividend)s, 
+                                    %(split_coefficient)s,
+                                    %(stock_uid)s)
+                                ON CONFLICT DO NOTHING;
+                            """, row)
+                            conn.commit()
+                            row_count += cursor.rowcount
                     return row_count
 
     def run(self):
+        logger = logging.getLogger(__name__ + "_" + self._symbol)
+        logger.setLevel(logging.WARNING)
+        file_handler = None
+        if self._log_path is not None:
+            file_handler = logging.FileHandler(self._log_path, mode='w', delay=True)
+            formatter = logging.Formatter("[%(asctime)s] [%(name)s] [%(levelname)s] - %(message)s ")
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+
+        stream_handler = logging.StreamHandler()
+        logger.addHandler(stream_handler)
         try:
             json_obj = self._get_daily_adjusted()
             row_count = self._db_write(json_obj)
-            self._logger.info("{0} updated. Row count = {1}".format(self._symbol, row_count))
+            logger.info("{0} updated. Row count = {1}".format(self._symbol, row_count))
         except Exception as ex:
-            self._logger.error(str(ex))
+            logger.error(str(ex))
             return False, 0
+        finally:
+            if file_handler is not None:
+                file_handler.flush()
+                file_handler.close()
+            stream_handler.flush()
+            stream_handler.close()
+
         return True, row_count
